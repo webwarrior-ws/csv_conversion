@@ -60,6 +60,8 @@ let getBTCPriceInEUR (date: DateOnly): decimal =
             let task = httpClient.GetStringAsync uri
             let! response = Async.AwaitTask task
             let json = JsonDocument.Parse response
+            if json.RootElement.ValueKind <> JsonValueKind.Object then
+                failwithf "Expected object, got %A for root element when getting price for %s" json.RootElement dateFormated
             let dataString = json.RootElement.GetProperty("data1d").GetString()
             let dataJsonArray = (JsonValue.Parse dataString).AsArray()
             let ohlcv = 
