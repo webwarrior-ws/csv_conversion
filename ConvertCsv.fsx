@@ -10,10 +10,10 @@ open FSharp.Data
 [<Literal>]
 let krakenCsvSource = """
 "txid","refid","time","type","subtype","aclass","asset","wallet","amount","fee","balance"
-"L4KKJU-NBWE3-RXGDGW","QGBYLH6-R2VQXW-57ET7W","2016-12-03 09:28:24","deposit","","currency","BTC","spot / main",0.0100000000,0,0.0100000000
-"LNN3WX-7RQ4N-RG4GPE","T34SV6-JJE3B-BE3FOM","2016-12-03 09:57:31","trade","","currency","BTC","spot / main",-0.0099470000,0,0.0000530000
-"LQJ73V-IZDYD-WF7QDR","QGBTNW5-TMNAGG-554WKC","2016-12-03 13:35:08","deposit","","currency","BTC","spot / main",0.1845177300,0,0.1845707300
-"LYDRXZ-H236G-BXIMLG","TF7H5O-WSLJM-XZPW26","2016-12-03 13:55:32","trade","","currency","BTC","spot / main",-0.1561110000,0,0.0284597300
+"L4KKJU-NBWE3-RXGDGW","QGBYLH6-R2VQXW-57ET7W","2016-12-03 09:28:24","deposit","","currency","BTC","spot / main",0.0100000000,0.0,0.0100000000
+"LNN3WX-7RQ4N-RG4GPE","T34SV6-JJE3B-BE3FOM","2016-12-03 09:57:31","trade","","currency","BTC","spot / main",-0.0099470000,0.0,0.0000530000
+"LQJ73V-IZDYD-WF7QDR","QGBTNW5-TMNAGG-554WKC","2016-12-03 13:35:08","deposit","","currency","BTC","spot / main",0.1845177300,0.0,0.1845707300
+"LYDRXZ-H236G-BXIMLG","TF7H5O-WSLJM-XZPW26","2016-12-03 13:55:32","trade","","currency","BTC","spot / main",-0.1561110000,0.0,0.0284597300
 """
 
 type KrakenCsv = CsvProvider<krakenCsvSource>
@@ -21,7 +21,7 @@ type KrakenCsv = CsvProvider<krakenCsvSource>
 [<Literal>]
 let krakenTargetCsvSource = """
 txid,refid,time,type,subtype,aclass,asset,wallet,amount,fee,balance,Average BTC value in EUR that day,Approx amount in EUR spent,Approx value in EUR present day
-L4KKJU-NBWE3-RXGDGW,QGBYLH6-R2VQXW-57ET7W,03.12.2016 9:28,deposit,,currency,BTC,spot / main,0.01,0,0.01,800.0,8.0,500.0
+L4KKJU-NBWE3-RXGDGW,QGBYLH6-R2VQXW-57ET7W,03.12.2016 9:28,deposit,,currency,BTC,spot / main,0.01,0.0,0.01,800.0,8.0,500.0
 """
 type KrakenTargetCsv = CsvProvider<krakenTargetCsvSource>
 
