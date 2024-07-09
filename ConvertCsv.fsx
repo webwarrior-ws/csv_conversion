@@ -19,6 +19,13 @@ let krakenCsvSource = """
 type KrakenCsv = CsvProvider<krakenCsvSource>
 
 [<Literal>]
+let krakenReducedCsvSource = """
+txid,refid,time,type,subtype,aclass,asset,wallet,amount,fee,balance
+L4KKJU-NBWE3-RXGDGW,QGBYLH6-R2VQXW-57ET7W,03.12.2016 9:28,deposit,,currency,BTC,spot / main,0.01,0.0,0.01
+"""
+type KrakenReducedCsv = CsvProvider<krakenReducedCsvSource>
+
+[<Literal>]
 let krakenTargetCsvSource = """
 txid,refid,time,type,subtype,aclass,asset,wallet,amount,fee,balance,Average BTC value in EUR that day,Approx amount in EUR spent,Approx value in EUR present day
 L4KKJU-NBWE3-RXGDGW,QGBYLH6-R2VQXW-57ET7W,03.12.2016 9:28,deposit,,currency,BTC,spot / main,0.01,0.0,0.01,800.0,8.0,500.0
@@ -35,6 +42,15 @@ ID,Account,Type,Subtype,Datetime,Amount,Amount currency,Value,Value currency,Rat
 """
 
 type BitStampCsv = CsvProvider<bitStampCsvSource>
+
+[<Literal>]
+let bitStampReducedCsvSource = """
+ID,Order Type,Subtype,Datetime,Amount,Amount currency,Value,Value currency,Rate,Rate currency,Fee,Fee currency,Order ID
+67642304,Market,Buy,2021-06-04T11:49:57Z,0.03760132,ETH,0.002969,BTC,0.07895999,BTC,0.000006,BTC,1626588334
+67642304,Market,Buy,2021-06-04T11:49:57Z,0.03760132,ETH,0.002969,BTC,0.07895999,BTC,0.000006,BTC,
+"""
+
+type BitStampReducedCsv = CsvProvider<bitStampReducedCsvSource>
 
 [<Literal>]
 let bitStampTargetCsvSource = """
@@ -95,21 +111,33 @@ let getBTCPriceInEUR (date: DateOnly): decimal =
 
 let todaysPrice = lazy(getBTCPriceInEUR (DateOnly.FromDateTime DateTime.Today))
 
-let getModifiedFileName (file: FileInfo) =
+let getFileNameWithAddedSuffix (file: FileInfo) (suffix: string) =
     let nameWithoutExtension = file.Name.Substring(0, file.Name.Length - file.Extension.Length)
-    nameWithoutExtension + "_modified" + file.Extension
+    nameWithoutExtension + suffix + file.Extension
 
 let args = Environment.GetCommandLineArgs()
 
 let csvType = args.[2]
 let file = FileInfo args.[3]
 
+let reducedSuffix = "_original"
+let augmentedSuffix = "_augmented"
+
 if csvType.ToLower() = "kraken" then
     let csv = KrakenCsv.Load file.FullName
     let modifiedCsv = 
         csv.Filter(fun row -> row.Type = "trade" && row.Amount > 0.0m)
-    let targetRows = 
+    
+    let reducedRows =
         modifiedCsv.Rows
+        |> Seq.map (fun row ->
+            KrakenReducedCsv.Row(
+                row.Txid, row.Refid, row.Time, row.Type, row.Subtype, row.Aclass, row.Asset, row.Wallet, row.Amount, row.Fee, row.Balance))
+    let reducedCsv = new KrakenReducedCsv(reducedRows)
+    reducedCsv.Save(Path.Join(file.DirectoryName, getFileNameWithAddedSuffix file reducedSuffix))
+
+    let targetRows = 
+        reducedRows
         |> Seq.map (fun row ->
             let avgBTCValueOnTxDate = getBTCPriceInEUR (DateOnly.FromDateTime row.Time)
             let amountInEURToday = row.Amount * todaysPrice.Value
@@ -118,20 +146,29 @@ if csvType.ToLower() = "kraken" then
                 row.Txid, row.Refid, row.Time, row.Type, row.Subtype, row.Aclass, row.Asset, row.Wallet, row.Amount, row.Fee, row.Balance,
                 avgBTCValueOnTxDate, amountInEURSpent, amountInEURToday) )
     let targetCsv = new KrakenTargetCsv(targetRows)
-    targetCsv.Save(Path.Join(file.DirectoryName, getModifiedFileName file))
+    targetCsv.Save(Path.Join(file.DirectoryName, getFileNameWithAddedSuffix file augmentedSuffix))
 elif csvType.ToLower() = "bitstamp" then
     let csv = BitStampCsv.Load file.FullName
     let modifiedCsv = csv.Filter(fun row -> row.``Amount currency`` = "BTC")
-    let targetRows = 
+    
+    let reducedRows =
         modifiedCsv.Rows
+        |> Seq.map (fun row ->
+            BitStampReducedCsv.Row(
+                row.ID, row.Type, row.Subtype, row.Datetime, row.Amount, row.``Amount currency``, row.Value, row.``Value currency``, row.Rate, row.``Rate currency``, row.Fee, row.``Fee currency``, row.``Order ID``))
+    let reducedCsv = new BitStampReducedCsv(reducedRows)
+    reducedCsv.Save(Path.Join(file.DirectoryName, getFileNameWithAddedSuffix file reducedSuffix))
+    
+    let targetRows = 
+        reducedRows
         |> Seq.map (fun row ->
             let avgBTCValueOnTxDate = getBTCPriceInEUR (DateOnly.FromDateTime row.Datetime.DateTime)
             let amountInEURToday = row.Amount * todaysPrice.Value
             let amountInEURSpent = row.Amount * avgBTCValueOnTxDate
             BitStampTargetCsv.Row(
-                row.ID, row.Type, row.Subtype, row.Datetime, row.Amount, row.``Amount currency``, row.Value, row.``Value currency``, row.Rate, row.``Rate currency``, row.Fee, row.``Fee currency``, row.``Order ID``,
+                row.ID, row.``Order Type``, row.Subtype, row.Datetime, row.Amount, row.``Amount currency``, row.Value, row.``Value currency``, row.Rate, row.``Rate currency``, row.Fee, row.``Fee currency``, row.``Order ID``,
                 avgBTCValueOnTxDate, amountInEURSpent, amountInEURToday) )
     let targetCsv = new BitStampTargetCsv(targetRows)
-    targetCsv.Save(Path.Join(file.DirectoryName, getModifiedFileName file))
+    targetCsv.Save(Path.Join(file.DirectoryName, getFileNameWithAddedSuffix file augmentedSuffix))
 else
     failwithf "Unknown type: %s (valid types: kraken, bitstamp)" csvType
