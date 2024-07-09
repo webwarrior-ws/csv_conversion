@@ -20,15 +20,15 @@ type KrakenCsv = CsvProvider<krakenCsvSource>
 
 [<Literal>]
 let krakenReducedCsvSource = """
-txid,refid,time,type,subtype,aclass,asset,wallet,amount,fee,balance
-L4KKJU-NBWE3-RXGDGW,QGBYLH6-R2VQXW-57ET7W,03.12.2016 9:28,deposit,,currency,BTC,spot / main,0.01,0.0,0.01
+txid,refid,time,asset,amount
+L4KKJU-NBWE3-RXGDGW,QGBYLH6-R2VQXW-57ET7W,03.12.2016 9:28,BTC,0.01
 """
 type KrakenReducedCsv = CsvProvider<krakenReducedCsvSource>
 
 [<Literal>]
 let krakenTargetCsvSource = """
-txid,refid,time,type,subtype,aclass,asset,wallet,amount,fee,balance,Average BTC value in EUR that day,Approx amount in EUR spent,Approx value in EUR present day
-L4KKJU-NBWE3-RXGDGW,QGBYLH6-R2VQXW-57ET7W,03.12.2016 9:28,deposit,,currency,BTC,spot / main,0.01,0.0,0.01,800.0,8.0,500.0
+txid,refid,time,asset,amount,Average BTC value in EUR that day,Approx amount in EUR spent,Approx value in EUR present day
+L4KKJU-NBWE3-RXGDGW,QGBYLH6-R2VQXW-57ET7W,03.12.2016 9:28,BTC,0.01,800.0,8.0,500.0
 """
 type KrakenTargetCsv = CsvProvider<krakenTargetCsvSource>
 
@@ -130,9 +130,7 @@ if csvType.ToLower() = "kraken" then
     
     let reducedRows =
         modifiedCsv.Rows
-        |> Seq.map (fun row ->
-            KrakenReducedCsv.Row(
-                row.Txid, row.Refid, row.Time, row.Type, row.Subtype, row.Aclass, row.Asset, row.Wallet, row.Amount, row.Fee, row.Balance))
+        |> Seq.map (fun row -> KrakenReducedCsv.Row(row.Txid, row.Refid, row.Time, row.Asset, row.Amount))
     let reducedCsv = new KrakenReducedCsv(reducedRows)
     reducedCsv.Save(Path.Join(file.DirectoryName, getFileNameWithAddedSuffix file reducedSuffix))
 
@@ -143,7 +141,7 @@ if csvType.ToLower() = "kraken" then
             let amountInEURToday = row.Amount * todaysPrice.Value
             let amountInEURSpent = row.Amount * avgBTCValueOnTxDate
             KrakenTargetCsv.Row(
-                row.Txid, row.Refid, row.Time, row.Type, row.Subtype, row.Aclass, row.Asset, row.Wallet, row.Amount, row.Fee, row.Balance,
+                row.Txid, row.Refid, row.Time, row.Asset, row.Amount,
                 avgBTCValueOnTxDate, amountInEURSpent, amountInEURToday) )
     let targetCsv = new KrakenTargetCsv(targetRows)
     targetCsv.Save(Path.Join(file.DirectoryName, getFileNameWithAddedSuffix file augmentedSuffix))
