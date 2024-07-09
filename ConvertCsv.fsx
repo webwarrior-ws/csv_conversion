@@ -45,38 +45,53 @@ ID,Order Type,Subtype,Datetime,Amount,Amount currency,Value,Value currency,Rate,
 
 type BitStampTargetCsv = CsvProvider<bitStampTargetCsvSource>
 
-let getBTCPriceInEUR (date: DateOnly): decimal =
+[<Literal>]
+let bitcoinityCsvSource = """
+Time,bit-x,bitfinex,bitstamp,cex.io,coinbase,exmo,gemini,itbit,kraken,others
+2011-06-20 00:00:00 UTC,,,,,,,,,,14.0
+2020-03-31 00:00:00 UTC,6451.99019022834,6457.72781466452,6451.4337806601,6460.91003570688,6452.08720718026,6743.31873439978,6453.62268276825,6451.36892455235,6451.03584674415,
+"""
+
+type BitcoinityCsv = CsvProvider<bitcoinityCsvSource, PreferOptionals=true>
+
+let historicalBTCPriceData = lazy(
     async {
-        let dateFormated = date.ToString("yyyyMMdd")
-        use httpClient = new HttpClient()
-        if date = (DateTime.Today |> DateOnly.FromDateTime) then
-            let uri = Uri "https://cex.io/api/last_price/BTC/EUR"
-            let! response = httpClient.GetStringAsync uri |> Async.AwaitTask
-            let json = JsonDocument.Parse response
-            return json.RootElement.GetProperty("lprice").GetString() |> decimal
-        else
-            let baseUrl = $"https://cex.io/api/ohlcv/hd/{dateFormated}/BTC/EUR"
-            let uri = Uri baseUrl
-            let task = httpClient.GetStringAsync uri
-            let! response = Async.AwaitTask task
-            let json = JsonDocument.Parse response
-            if json.RootElement.ValueKind <> JsonValueKind.Object then
-                failwithf "Expected object, got %A for root element when getting price for %s" json.RootElement dateFormated
-            let dataString = json.RootElement.GetProperty("data1d").GetString()
-            let dataJsonArray = (JsonValue.Parse dataString).AsArray()
-            let ohlcv = 
-                dataJsonArray 
-                |> Array.map (fun each -> each.AsArray()) 
-                |> Array.find (fun each -> 
-                    let currDate = 
-                        DateTime.UnixEpoch.AddSeconds(each.[0].AsInteger()).Date 
-                        |> DateOnly.FromDateTime
-                    currDate = date)
-            let openValue = ohlcv.[1].AsDecimal()
-            let closeValue = ohlcv.[4].AsDecimal()
-            return (openValue + closeValue) / 2.0m
+        let! csv = 
+            BitcoinityCsv.AsyncLoad 
+                "https://data.bitcoinity.org/export_data.csv?c=e&currency=EUR&data_type=price&t=l&timespan=all"
+        return 
+            seq {
+                let mutable lastPrice = 0.0m
+                for row in csv.Rows do
+                    let date = DateOnly.Parse row.Time.[..9]
+                    let struct(_, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10) = row.ToValueTuple()
+                    let prices = [| p1; p2; p3; p4; p5; p6; p7; p8; p9; p10 |] |> Array.choose id
+                    // there are rows with no price data, in that case return last known price
+                    if prices.Length > 0 then
+                        lastPrice <- (Array.sum prices) / (decimal prices.Length)
+                    yield date, lastPrice
+            }
+            |> readOnlyDict
     }
     |> Async.RunSynchronously
+)
+
+let todaysBTCPrice = lazy(
+    async {
+        use httpClient = new HttpClient()
+        let uri = Uri "https://cex.io/api/last_price/BTC/EUR"
+        let! response = httpClient.GetStringAsync uri |> Async.AwaitTask
+        let json = JsonDocument.Parse response
+        return json.RootElement.GetProperty("lprice").GetString() |> decimal
+    }
+    |> Async.RunSynchronously
+)
+
+let getBTCPriceInEUR (date: DateOnly): decimal =
+    if date = (DateTime.Today |> DateOnly.FromDateTime) then
+        todaysBTCPrice.Value
+    else
+        historicalBTCPriceData.Value.[date]
 
 let todaysPrice = lazy(getBTCPriceInEUR (DateOnly.FromDateTime DateTime.Today))
 
